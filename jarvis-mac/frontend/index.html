@@ -16,3 +16,107 @@ async function sendChat(){const body={message:document.getElementById('prompt').
 async function loadApps(){const r=await fetch(`${base()}/apps`,{headers:{'Authorization':`Bearer ${document.getElementById('token').value}`}});document.getElementById('appsOut').textContent=JSON.stringify(await r.json(),null,2)}
 async function runScript(){const body={script:document.getElementById('script').value};const r=await fetch(`${base()}/script/run`,{method:'POST',headers:auth(),body:JSON.stringify(body)});document.getElementById('scriptOut').textContent=JSON.stringify(await r.json(),null,2)}
 </script></body></html>
+<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Jarvis for Mac</title>
+<style>body{font-family:Arial;margin:0;background:#0a0f1f;color:#e8f1ff}.wrap{max-width:980px;margin:auto;padding:24px}.card{background:#111933;border-radius:12px;padding:16px;margin-bottom:16px}button{padding:8px 14px;border:none;border-radius:8px;background:#1b7cff;color:#fff;cursor:pointer}input,textarea{width:100%;margin:8px 0;padding:10px;border-radius:8px;border:1px solid #304070;background:#0e1530;color:#fff}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}#chatLog{white-space:pre-wrap;min-height:180px}ul{max-height:280px;overflow:auto}</style>
+</head>
+<body><div class="wrap"><h1>Jarvis Mac Assistant</h1>
+<div class="card"><label>Backend URL</label><input id="apiBase" value="http://localhost:8000" /><label>Auth Token</label><input id="token" value="local-dev-token" /></div>
+<div class="grid"><div class="card"><h3>Chat / Command</h3><textarea id="chatInput" rows="4" placeholder="open Safari"></textarea><button onclick="sendChat()">Send</button><button onclick="speakPrompt()">🎤 Voice Input</button><div id="chatLog" class="card"></div></div>
+<div class="card"><h3>Installed Apps</h3><button onclick="loadApps()">Refresh Apps</button><ul id="apps"></ul></div></div>
+<div class="card"><h3>Run AppleScript</h3><textarea id="script" rows="3" placeholder='say "Hello from Jarvis"'></textarea><button onclick="runScript()">Run Script</button><div id="scriptOut"></div></div></div>
+<script>
+const base=()=>document.getElementById('apiBase').value; const token=()=>document.getElementById('token').value;
+const headers=()=>({'Content-Type':'application/json','Authorization':`Bearer ${token()}`});
+async function sendChat(){const message=document.getElementById('chatInput').value;const res=await fetch(`${base()}/chat`,{method:'POST',headers:headers(),body:JSON.stringify({message})});const data=await res.json();document.getElementById('chatLog').textContent+=`You: ${message}\nJarvis: ${data.reply}\n\n`;speak(data.reply)}
+async function loadApps(){const res=await fetch(`${base()}/apps`,{headers:{'Authorization':`Bearer ${token()}`}});const data=await res.json();const ul=document.getElementById('apps');ul.innerHTML='';(data.apps||[]).forEach(name=>{const li=document.createElement('li');li.innerHTML=`${name} <button onclick="launch('${name.replace(/'/g,"\\'")}')">Launch</button> <button onclick="quitApp('${name.replace(/'/g,"\\'")}')">Quit</button>`;ul.appendChild(li);});}
+async function launch(name){await fetch(`${base()}/apps/launch`,{method:'POST',headers:headers(),body:JSON.stringify({app_name:name})});}
+async function quitApp(name){await fetch(`${base()}/apps/quit`,{method:'POST',headers:headers(),body:JSON.stringify({app_name:name})});}
+async function runScript(){const script=document.getElementById('script').value;const res=await fetch(`${base()}/script/run`,{method:'POST',headers:headers(),body:JSON.stringify({script})});const data=await res.json();document.getElementById('scriptOut').textContent=`Output: ${data.output??''}`;}
+function speak(text){if(!window.speechSynthesis)return;const u=new SpeechSynthesisUtterance(text);window.speechSynthesis.speak(u)}
+function speakPrompt(){const S=window.SpeechRecognition||window.webkitSpeechRecognition;if(!S){alert('Speech recognition not supported in this browser.');return;}const r=new S();r.onresult=e=>{document.getElementById('chatInput').value=e.results[0][0].transcript;};r.start();}
+</script></body></html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Jarvis for Mac</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 0; background: #0a0f1f; color: #e8f1ff; }
+      .wrap { max-width: 920px; margin: 0 auto; padding: 24px; }
+      .card { background: #111933; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+      button { padding: 8px 14px; border: none; border-radius: 8px; background: #1b7cff; color: white; cursor: pointer; }
+      input, textarea, select { width: 100%; margin: 8px 0; padding: 10px; border-radius: 8px; border: 1px solid #304070; background:#0e1530; color:#fff; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      #chatLog { white-space: pre-wrap; min-height: 180px; }
+      ul { max-height: 300px; overflow:auto; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Jarvis Mac Assistant</h1>
+      <div class="grid">
+        <div class="card">
+          <h3>Chat</h3>
+          <label>Backend URL</label>
+          <input id="apiBase" value="http://localhost:8000" />
+          <textarea id="chatInput" rows="4" placeholder="Ask Jarvis to help..."></textarea>
+          <button onclick="sendChat()">Send</button>
+          <div id="chatLog" class="card"></div>
+        </div>
+        <div class="card">
+          <h3>Installed Apps</h3>
+          <button onclick="loadApps()">Refresh Apps</button>
+          <ul id="apps"></ul>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Run AppleScript</h3>
+        <textarea id="script" rows="3" placeholder='say "Hello from Jarvis"'></textarea>
+        <button onclick="runScript()">Run Script</button>
+        <div id="scriptOut"></div>
+      </div>
+    </div>
+
+    <script>
+      const base = () => document.getElementById('apiBase').value;
+
+      async function sendChat() {
+        const message = document.getElementById('chatInput').value;
+        const res = await fetch(`${base()}/chat`, {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({message})
+        });
+        const data = await res.json();
+        document.getElementById('chatLog').textContent += `You: ${message}\nJarvis: ${data.reply}\n\n`;
+      }
+
+      async function loadApps() {
+        const res = await fetch(`${base()}/apps`);
+        const data = await res.json();
+        const ul = document.getElementById('apps');
+        ul.innerHTML = '';
+        data.apps.forEach(name => {
+          const li = document.createElement('li');
+          li.innerHTML = `${name} <button onclick="launch('${name.replace(/'/g, "\\'")}')">Launch</button> <button onclick="quitApp('${name.replace(/'/g, "\\'")}')">Quit</button>`;
+          ul.appendChild(li);
+        });
+      }
+
+      async function launch(name) {
+        await fetch(`${base()}/apps/launch`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({app_name:name}) });
+      }
+
+      async function quitApp(name) {
+        await fetch(`${base()}/apps/quit`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({app_name:name}) });
+      }
+
+      async function runScript() {
+        const script = document.getElementById('script').value;
+        const res = await fetch(`${base()}/script/run`, {
+          method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({script})
+        });
+        const data = await res.json();
+        document.getElementById('scriptOut').textContent = `Output: ${data.output ?? ''}`;
+      }
+    </script>
+  </body>
+</html>
