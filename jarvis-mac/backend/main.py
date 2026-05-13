@@ -6,6 +6,7 @@ from typing import List, Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -19,6 +20,8 @@ load_dotenv()
 AUTH_TOKEN = os.getenv("JARVIS_AUTH_TOKEN", "local-dev-token")
 
 app = FastAPI(title="Jarvis Mac Assistant", version="0.2.0")
+app = FastAPI(title="Jarvis Mac Assistant", version="0.1.0")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -76,6 +79,10 @@ def _rule_based_action(text: str) -> dict:
     if t.startswith("run script:"):
         return {"type": "run_script", "script": text.split(":", 1)[1].strip()}
     return {"type": "none"}
+    apps_dir = Path("/Applications")
+    if not apps_dir.exists():
+        return []
+    return sorted([p.stem for p in apps_dir.glob("*.app")])
 
 
 @app.get("/health")
@@ -86,12 +93,18 @@ def health() -> dict:
 @app.get("/apps")
 def apps(authorization: Optional[str] = Header(default=None)) -> dict:
     _verify_token(authorization)
+    return {"status": "ok"}
+
+
+@app.get("/apps")
+def apps() -> dict:
     return {"apps": _applications()}
 
 
 @app.post("/apps/launch")
 def launch_app(payload: ActionRequest, authorization: Optional[str] = Header(default=None)) -> dict:
     _verify_token(authorization)
+def launch_app(payload: ActionRequest) -> dict:
     _run_command(["open", "-a", payload.app_name])
     return {"launched": payload.app_name}
 
@@ -99,6 +112,7 @@ def launch_app(payload: ActionRequest, authorization: Optional[str] = Header(def
 @app.post("/apps/quit")
 def quit_app(payload: ActionRequest, authorization: Optional[str] = Header(default=None)) -> dict:
     _verify_token(authorization)
+def quit_app(payload: ActionRequest) -> dict:
     script = f'tell application "{payload.app_name}" to quit'
     _run_command(["osascript", "-e", script])
     return {"quit": payload.app_name}
@@ -107,6 +121,7 @@ def quit_app(payload: ActionRequest, authorization: Optional[str] = Header(defau
 @app.post("/script/run")
 def run_applescript(payload: ScriptRequest, authorization: Optional[str] = Header(default=None)) -> dict:
     _verify_token(authorization)
+def run_applescript(payload: ScriptRequest) -> dict:
     output = _run_command(["osascript", "-e", payload.script])
     return {"output": output}
 
@@ -149,3 +164,31 @@ def chat(payload: ChatRequest, authorization: Optional[str] = Header(default=Non
         ],
     )
     return {"reply": resp.output_text, "action": action}
+@app.post("/chat")
+def chat(payload: ChatRequest) -> dict:
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return {
+            "reply": "OPENAI_API_KEY is not set. I can still launch and control local apps via API endpoints.",
+            "actions": [],
+        }
+
+    if OpenAI is None:
+        raise HTTPException(status_code=500, detail="openai package is not available")
+
+    client = OpenAI(api_key=api_key)
+    system_prompt = (
+        "You are a local macOS assistant. Respond briefly and include optional action hints "
+        "as JSON under key 'actions' with elements like "
+        "{'type':'launch_app','app_name':'Safari'} when appropriate."
+    )
+
+    resp = client.responses.create(
+        model=payload.model,
+        input=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": payload.message},
+        ],
+    )
+
+    return {"reply": resp.output_text, "actions": []}
