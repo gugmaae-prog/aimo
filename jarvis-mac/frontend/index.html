@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Desktop Copilot</title>
+<style>body{font-family:Arial;background:#0b1220;color:#e5edff;margin:0}.wrap{max-width:960px;margin:auto;padding:24px}.card{background:#131d36;padding:16px;border-radius:12px;margin-bottom:16px}input,textarea,select{width:100%;margin-top:8px;padding:10px;background:#0e1530;color:#fff;border:1px solid #35508f;border-radius:8px}button{margin-top:10px;padding:8px 12px;background:#2b7cff;color:#fff;border:none;border-radius:8px;cursor:pointer}pre{white-space:pre-wrap}</style>
+</head>
+<body><div class="wrap"><h1>Desktop Copilot (Supabase + Cloudflare + Groq + Mistral)</h1>
+<div class="card"><label>Backend URL</label><input id="base" value="http://localhost:8000"/><label>Auth Token</label><input id="token" value="local-dev-token"/></div>
+<div class="card"><label>Provider</label><select id="provider"><option>groq</option><option>mistral</option><option>cloudflare</option></select><label>Prompt</label><textarea id="prompt" rows="4" placeholder="Summarize my day and suggest focus tasks"></textarea><button onclick="sendChat()">Ask Copilot</button><pre id="chatOut"></pre></div>
+<div class="card"><button onclick="loadApps()">List Installed Apps</button><pre id="appsOut"></pre></div>
+<div class="card"><label>AppleScript</label><textarea id="script" rows="3" placeholder='say "hello"'></textarea><button onclick="runScript()">Run Script</button><pre id="scriptOut"></pre></div>
+</div>
+<script>
+const base=()=>document.getElementById('base').value;
+const auth=()=>({'Authorization':`Bearer ${document.getElementById('token').value}`,'Content-Type':'application/json'});
+async function sendChat(){const body={message:document.getElementById('prompt').value,provider:document.getElementById('provider').value};const r=await fetch(`${base()}/chat`,{method:'POST',headers:auth(),body:JSON.stringify(body)});document.getElementById('chatOut').textContent=JSON.stringify(await r.json(),null,2)}
+async function loadApps(){const r=await fetch(`${base()}/apps`,{headers:{'Authorization':`Bearer ${document.getElementById('token').value}`}});document.getElementById('appsOut').textContent=JSON.stringify(await r.json(),null,2)}
+async function runScript(){const body={script:document.getElementById('script').value};const r=await fetch(`${base()}/script/run`,{method:'POST',headers:auth(),body:JSON.stringify(body)});document.getElementById('scriptOut').textContent=JSON.stringify(await r.json(),null,2)}
+</script></body></html>
